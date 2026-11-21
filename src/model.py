@@ -1,39 +1,36 @@
 
 import torch
 import torch.nn as nn
-
 from torchvision import models
-
-
-# ==========================================
-# 1. Model configuration
-# ==========================================
 
 NUM_CLASSES = 101
 
 
-# ==========================================
-# 2. Build MobileNetV3-Small
-# ==========================================
-
-def build_model(num_classes=NUM_CLASSES, freeze_backbone=True):
-
-    # Load pretrained MobileNetV3-Small
+def build_model(
+    num_classes=NUM_CLASSES,
+    freeze_backbone=True,
+    unfreeze_last_n=0
+):
     weights = models.MobileNet_V3_Small_Weights.DEFAULT
 
-    model = models.mobilenet_v3_small(
-        weights=weights
-    )
+    model = models.mobilenet_v3_small(weights=weights)
 
-    # Freeze the pretrained feature extractor
+    # Freeze all feature extraction layers initially.
     if freeze_backbone:
         for param in model.features.parameters():
             param.requires_grad = False
 
-    # Find the input size of the final classification layer
+        # Optionally unfreeze the final feature blocks.
+        if unfreeze_last_n > 0:
+            feature_blocks = list(model.features.children())
+
+            for block in feature_blocks[-unfreeze_last_n:]:
+                for param in block.parameters():
+                    param.requires_grad = True
+
+    # Replace the final classification layer for Food-101.
     input_features = model.classifier[-1].in_features
 
-    # Replace the final layer with our 101-class classifier
     model.classifier[-1] = nn.Linear(
         input_features,
         num_classes
@@ -42,12 +39,7 @@ def build_model(num_classes=NUM_CLASSES, freeze_backbone=True):
     return model
 
 
-# ==========================================
-# 3. Select computing device
-# ==========================================
-
 def get_device():
-
     if torch.backends.mps.is_available():
         return torch.device("mps")
 
@@ -57,46 +49,24 @@ def get_device():
     return torch.device("cpu")
 
 
-# ==========================================
-# 4. Test the model
-# ==========================================
-
 if __name__ == "__main__":
-
     device = get_device()
 
-    model = build_model()
-
+    model = build_model(unfreeze_last_n=3)
     model = model.to(device)
 
-    # Create two example RGB images
-    sample_images = torch.randn(
-        2, 3, 224, 224
-    ).to(device)
-
-    # Run a forward pass
-    model.eval()
-
-    with torch.no_grad():
-        predictions = model(sample_images)
-
-    print("\n========== FOODVISION AI ==========")
-
-    print("Selected device:", device)
-    print("Model architecture: MobileNetV3-Small")
-    print("Number of classes:", NUM_CLASSES)
-
-    print("Input shape:", sample_images.shape)
-    print("Output shape:", predictions.shape)
-
-    print(
-        "Trainable parameters:",
-        sum(p.numel() for p in model.parameters() if p.requires_grad)
+    trainable = sum(
+        p.numel() for p in model.parameters() if p.requires_grad
     )
 
-    print(
-        "Total parameters:",
-        sum(p.numel() for p in model.parameters())
+    total = sum(
+        p.numel() for p in model.parameters()
     )
 
-    print("\nModel initialized successfully!")
+    print("========== FOODVISION AI FINE-TUNING ==========")
+    print("Device:", device)
+    print("Architecture: MobileNetV3-Small")
+    print("Food categories:", NUM_CLASSES)
+    print("Unfrozen feature blocks: 3")
+    print("Trainable parameters:", f"{trainable:,}")
+    print("Total parameters:", f"{total:,}")
