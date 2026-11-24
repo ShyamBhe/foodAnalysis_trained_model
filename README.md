@@ -149,7 +149,7 @@ food-ai-model/
 ### 1. Clone the repository
 
 ```bash
-git clone <YOUR_GITHUB_REPOSITORY_URL>
+git clone https://github.com/ShyamBhe/foodAnalysis_trained_model.git
 cd food-ai-model
 ```
 
